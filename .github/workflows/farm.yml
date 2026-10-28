@@ -1,0 +1,37 @@
+name: KickBoost 24/7 Cloud Farm
+
+on:
+  schedule:
+    # Executa a cada 5 minutos 24 horas por dia, 7 dias por semana
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  farm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: kickboost-farm
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run Cloud Worker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          RUN_DURATION_SEC: 270
+        run: python worker.py
