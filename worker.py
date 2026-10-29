@@ -1,44 +1,54 @@
 """
-KickBoost Cloud Worker 24/7
-Runs continuously in GitHub Actions / Cloud Runner.
-Zero PC required - 100% automated farm and vitrine entrance.
+KickBoost Cloud Worker 24/7 - Multi-Account Syndicate & Auto-Vitrine
+Runs in GitHub Actions / Cloud.
+Farms on main account + 5 ghost accounts in parallel.
+Transfers all farmed coins to main account and buys Vitrine Slot 1 automatically.
 """
 import os
 import sys
 import time
+import json
 import requests
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://dlmctogvkgbabribpnvm.supabase.co")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
-REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "5nnv7alciejw")
+MAIN_REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "5nnv7alciejw")
+MAIN_USER_ID = "bfcebab7-b5ba-4747-96fd-b2b48a7a5819"
 
-if not SUPABASE_ANON_KEY:
-    try:
-        import json
-        with open("kickboost_client_build/resources/app/config.json", "r") as f:
-            cfg = json.load(f)
-            SUPABASE_ANON_KEY = cfg["supabaseAnonKey"]
-    except Exception:
-        pass
+# Load ghost accounts
+GHOSTS = [
+    {"nome": "Operario 1", "refresh_token": "414e8259-rt", "id": "414e8259-edab-4278-a4f3-85794730ab2f"},
+    {"nome": "Operario 2", "refresh_token": "1bc0a11a-rt", "id": "1bc0a11a-fc68-421c-a6b9-8368dfb6989c"},
+    {"nome": "Operario 3", "refresh_token": "730ac196-rt", "id": "730ac196-1bca-407b-bf74-17c4e3e4f1af"},
+    {"nome": "Operario 4", "refresh_token": "71ec679a-rt", "id": "71ec679a-f431-495e-a1e5-55d8dca81907"},
+    {"nome": "Operario 5", "refresh_token": "35403fd7-rt", "id": "35403fd7-dbfb-4edf-87ee-99d7fb3e3339"}
+]
 
-def get_token():
+# Read exact refresh tokens from sindicato_contas.json if present
+try:
+    if os.path.exists("sindicato_contas.json"):
+        with open("sindicato_contas.json", "r", encoding="utf-8") as f:
+            GHOSTS = json.load(f)
+except Exception:
+    pass
+
+def get_token(refresh_tok):
     try:
         r = requests.post(
             f"{SUPABASE_URL}/auth/v1/token?grant_type=refresh_token",
             headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
-            json={"refresh_token": REFRESH_TOKEN},
+            json={"refresh_token": refresh_tok},
             timeout=10
         )
         if r.status_code == 200:
             return r.json().get("access_token")
     except Exception as e:
-        print(f"[Auth Error] {e}")
+        print(f"[Auth Error {refresh_tok[:8]}] {e}")
     return None
 
-def run_cycle():
-    token = get_token()
+def process_main_account():
+    token = get_token(MAIN_REFRESH_TOKEN)
     if not token:
-        print("[Alerta] Nao foi possivel obter token de sessao.")
         return
 
     headers = {
@@ -47,14 +57,12 @@ def run_cycle():
         "Content-Type": "application/json"
     }
 
-    # 1. Heartbeat basico
     try:
         hb = requests.post(f"{SUPABASE_URL}/rest/v1/rpc/registrar_heartbeat", headers=headers, json={"p_versao": "1.0.0"}, timeout=10)
         hb_data = hb.json() if hb.status_code == 200 else {}
     except Exception:
         hb_data = {}
 
-    # 2. Heartbeat HyperIA
     try:
         hh = requests.post(f"{SUPABASE_URL}/rest/v1/rpc/registrar_heartbeat_hyperia", headers=headers, json={}, timeout=10)
         hh_data = hh.json() if hh.status_code == 200 else {}
@@ -67,33 +75,70 @@ def run_cycle():
     horas = round(acumulado_seg / 3600, 2)
     liberado = hh_data.get("liberado", False)
 
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}] Farm OK | Moedas: {pontos} | Vitrine: {na_vitrine} | Horas 24h: {horas}h/24h")
+    print(f"[{time.strftime('%H:%M:%S UTC')}] [CONTA PRINCIPAL] Moedas: {pontos} | Vitrine: {na_vitrine} | Horas 24h: {horas}h/24h")
 
-    # 3. Se ja tiver liberado o modo free (apos 24h) e nao estiver na vitrine, tenta entrar
-    if liberado and not na_vitrine:
-        try:
-            ev = requests.post(f"{SUPABASE_URL}/rest/v1/rpc/entrar_vitrine", headers=headers, json={"p_modo": "automatico"}, timeout=10)
-            print(f"[*] Tentativa de entrada free na vitrine: {ev.status_code} {ev.text}")
-        except Exception as e:
-            print(f"[Erro Vitrine Free] {e}")
-
-    # 4. Se tiver moedas suficientes (>= 120) e nao estiver na vitrine, compra 1 hora
+    # Se moedas >= 120 e nao esta na vitrine, compra vitrine (Estrategia 2: Slot 1)
     if pontos >= 120 and not na_vitrine:
         try:
             cb = requests.post(f"{SUPABASE_URL}/rest/v1/rpc/comprar_tempo_vitrine", headers=headers, json={"p_horas": 1}, timeout=10)
-            print(f"[*] Compra de vitrine com moedas: {cb.status_code} {cb.text}")
+            print(f"[★ COMPRA VITRINE] Status: {cb.status_code} Resposta: {cb.text}")
         except Exception as e:
             print(f"[Erro Compra Vitrine] {e}")
 
+    # Se bateu as 24h e liberou o modo free
+    if liberado and not na_vitrine:
+        try:
+            ev = requests.post(f"{SUPABASE_URL}/rest/v1/rpc/entrar_vitrine", headers=headers, json={"p_modo": "automatico"}, timeout=10)
+            print(f"[★ VITRINE FREE] Status: {ev.status_code} Resposta: {ev.text}")
+        except Exception as e:
+            print(f"[Erro Vitrine Free] {e}")
+
+def process_ghost_account(ghost):
+    rt = ghost.get("refresh_token")
+    nome = ghost.get("nome", "Fantasma")
+    token = get_token(rt)
+    if not token:
+        return
+
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+    # Heartbeat
+    try:
+        hb = requests.post(f"{SUPABASE_URL}/rest/v1/rpc/registrar_heartbeat", headers=headers, json={"p_versao": "1.0.0"}, timeout=10)
+        hb_data = hb.json() if hb.status_code == 200 else {}
+    except Exception:
+        hb_data = {}
+
+    pontos = hb_data.get("pontos_total", 0)
+    print(f"  -> [{nome}] Farm OK | Moedas: {pontos}")
+
+    # Se tiver pelo menos 10 moedas (minimo de transferencia), drena tudo pra conta principal!
+    if pontos >= 10:
+        try:
+            tr = requests.post(
+                f"{SUPABASE_URL}/rest/v1/rpc/transferir_moedas",
+                headers=headers,
+                json={"p_destinatario_id": MAIN_USER_ID, "p_quantidade": pontos},
+                timeout=10
+            )
+            print(f"  [$$$ DRENO] {nome} transferiu {pontos} moedas -> Conta Principal! Resultado: {tr.status_code} {tr.text}")
+        except Exception as e:
+            print(f"  [Erro Transferencia {nome}] {e}")
+
 if __name__ == "__main__":
-    # Roda em loop por aproximadamente 4.5 minutos para cobrir o intervalo do schedule do GitHub
     start_time = time.time()
-    duration_seconds = int(os.environ.get("RUN_DURATION_SEC", "270"))  # 4m30s
-    print(f"=== [KickBoost Cloud Worker Iniciado] ===")
-    print(f"Duracao deste ciclo na nuvem: {duration_seconds} segundos")
+    duration_seconds = int(os.environ.get("RUN_DURATION_SEC", "270"))
+    print(f"=== [KickBoost Sindicato 24/7 Ativo] ===")
+    print(f"Contas no Sindicato: 1 Principal + {len(GHOSTS)} Fantasmas")
 
     while time.time() - start_time < duration_seconds:
-        run_cycle()
+        process_main_account()
+        for g in GHOSTS:
+            process_ghost_account(g)
         time.sleep(45)
 
-    print("=== [Ciclo na nuvem concluido com sucesso. Aguardando proximo disparo.] ===")
+    print("=== [Ciclo do Sindicato concluido com sucesso.] ===")

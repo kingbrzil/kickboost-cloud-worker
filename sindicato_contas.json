@@ -1,0 +1,37 @@
+[
+  {
+    "id": "414e8259-edab-4278-a4f3-85794730ab2f",
+    "email": "ghost_worker_1_c0c9e9@kbarmy.net",
+    "password": "KbPassc0c9e9!99",
+    "refresh_token": "7spveztoqo6g",
+    "nome": "Operario 1"
+  },
+  {
+    "id": "1bc0a11a-fc68-421c-a6b9-8368dfb6989c",
+    "email": "ghost_worker_2_9208c1@kbarmy.net",
+    "password": "KbPass9208c1!99",
+    "refresh_token": "yskeps756m6u",
+    "nome": "Operario 2"
+  },
+  {
+    "id": "730ac196-1bca-407b-bf74-17c4e3e4f1af",
+    "email": "ghost_worker_3_afed18@kbarmy.net",
+    "password": "KbPassafed18!99",
+    "refresh_token": "jzr2vm4c7ydv",
+    "nome": "Operario 3"
+  },
+  {
+    "id": "71ec679a-f431-495e-a1e5-55d8dca81907",
+    "email": "ghost_worker_4_5f391e@kbarmy.net",
+    "password": "KbPass5f391e!99",
+    "refresh_token": "s2b5dp2txuwp",
+    "nome": "Operario 4"
+  },
+  {
+    "id": "35403fd7-dbfb-4edf-87ee-99d7fb3e3339",
+    "email": "ghost_worker_5_09725b@kbarmy.net",
+    "password": "KbPass09725b!99",
+    "refresh_token": "i2zadmjhzt7f",
+    "nome": "Operario 5"
+  }
+]
