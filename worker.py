@@ -1,7 +1,7 @@
 """
-KickBoost Cloud Worker 24/7 - Multi-Account Syndicate & Auto-Vitrine
+KickBoost Cloud Worker 24/7 - Multi-Account Syndicate & Auto-Vitrine (30 Operarios)
 Runs in GitHub Actions / Cloud.
-Farms on main account + 5 ghost accounts in parallel.
+Farms on main account + 30 ghost accounts in parallel.
 Transfers all farmed coins to main account and buys Vitrine Slot 1 automatically.
 """
 import os
@@ -9,28 +9,21 @@ import sys
 import time
 import json
 import requests
+from concurrent.futures import ThreadPoolExecutor
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://dlmctogvkgbabribpnvm.supabase.co")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 MAIN_REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "5nnv7alciejw")
 MAIN_USER_ID = "bfcebab7-b5ba-4747-96fd-b2b48a7a5819"
 
-# Load ghost accounts
-GHOSTS = [
-    {"nome": "Operario 1", "refresh_token": "414e8259-rt", "id": "414e8259-edab-4278-a4f3-85794730ab2f"},
-    {"nome": "Operario 2", "refresh_token": "1bc0a11a-rt", "id": "1bc0a11a-fc68-421c-a6b9-8368dfb6989c"},
-    {"nome": "Operario 3", "refresh_token": "730ac196-rt", "id": "730ac196-1bca-407b-bf74-17c4e3e4f1af"},
-    {"nome": "Operario 4", "refresh_token": "71ec679a-rt", "id": "71ec679a-f431-495e-a1e5-55d8dca81907"},
-    {"nome": "Operario 5", "refresh_token": "35403fd7-rt", "id": "35403fd7-dbfb-4edf-87ee-99d7fb3e3339"}
-]
-
-# Read exact refresh tokens from sindicato_contas.json if present
+# Load 30 ghost accounts
+GHOSTS = []
 try:
     if os.path.exists("sindicato_contas.json"):
         with open("sindicato_contas.json", "r", encoding="utf-8") as f:
             GHOSTS = json.load(f)
-except Exception:
-    pass
+except Exception as e:
+    print(f"[Aviso] Nao foi possivel carregar sindicato_contas.json: {e}")
 
 def get_token(refresh_tok):
     try:
@@ -114,7 +107,6 @@ def process_ghost_account(ghost):
         hb_data = {}
 
     pontos = hb_data.get("pontos_total", 0)
-    print(f"  -> [{nome}] Farm OK | Moedas: {pontos}")
 
     # Se tiver pelo menos 10 moedas (minimo de transferencia), drena tudo pra conta principal!
     if pontos >= 10:
@@ -133,12 +125,12 @@ if __name__ == "__main__":
     start_time = time.time()
     duration_seconds = int(os.environ.get("RUN_DURATION_SEC", "270"))
     print(f"=== [KickBoost Sindicato 24/7 Ativo] ===")
-    print(f"Contas no Sindicato: 1 Principal + {len(GHOSTS)} Fantasmas")
+    print(f"Contas no Sindicato: 1 Principal + {len(GHOSTS)} Operarios Fantasmas")
 
     while time.time() - start_time < duration_seconds:
         process_main_account()
-        for g in GHOSTS:
-            process_ghost_account(g)
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            executor.map(process_ghost_account, GHOSTS)
         time.sleep(45)
 
     print("=== [Ciclo do Sindicato concluido com sucesso.] ===")
